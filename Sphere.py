@@ -14,15 +14,17 @@ class Sphere(SceneObject):
     def intersect(self, ray:Ray):
         d = ray.direction
         a = d.dot(d)
-        e = ray.origin.minus(self.center).toNormalized()
+        e = ray.origin.minus(self.center)
         b = 2 * d.dot(e)
         c = e.dot(e) - self.radius * self.radius
-        discriminant = b**2 - 4 * a * c
+        discriminant = b*b - 4 * a * c
         if discriminant < 0:
-            raise  "Result is imaginary"
+            return -999
         else:
-            optionA = (-b - math.sqrt(discriminant))/(2*a)
-            optionB = (-b + math.sqrt(discriminant))/(2*a)
+            SQRT_DISCRIMINANT = math.sqrt(discriminant)
+            TWO_A = 2 * a
+            optionA = (-b - SQRT_DISCRIMINANT)/TWO_A
+            optionB = (-b +SQRT_DISCRIMINANT)/TWO_A
             #What we do depends on whether they are both negative,
             #both positive,
             #or one of each

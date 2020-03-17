@@ -53,6 +53,9 @@ class Vector:
     
     def dot(self, other):
         return self.x * other.x + self.y * other.y + self.z * other.z
+
+    def pairwise(self, other):
+        return Vector(self.x * other.x, self.y * other.y, self.z * other.z)
     
 
 

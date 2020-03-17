@@ -5,8 +5,8 @@ from Vector import Vector
 
 class OrthographicCamera(Camera):
     """ A camera that is defined as two parallel planes. """
-    def __init__(self, origin:Point3D, lookAt:Point3D, up:Point3D, backgroundColor:Vector, halfWidth:float, halfHeight:float):
-        Camera.__init__(self, origin, lookAt, up, backgroundColor)
+    def __init__(self, origin:Point3D, lookAt:Point3D, up:Point3D, backgroundColor:Vector, raysPerPixel:int, halfWidth:float, halfHeight:float):
+        Camera.__init__(self, origin, lookAt, up, backgroundColor, raysPerPixel)
         self.halfWidth = halfWidth
         self.halfHeight = halfHeight
       
