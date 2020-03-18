@@ -57,7 +57,7 @@ startTime = datetime.datetime.now()
 # A light
 # An object to render
 
-background = png.Reader(filename="sky.png")
+background = png.Reader(filename="field.png")
 
 # https://stackoverflow.com/questions/138250/how-to-read-the-rgb-value-of-a-given-pixel-in-python/50894365
 backgroundWidth, backgroundHeight, backrgoundRows, backgroundMeta =  background.read_flat()
@@ -107,7 +107,7 @@ sphere4 = Sphere(sphereMaterial3, Point3D(0, -.1, .5), .1)
 
 lights = [light]
 objects = [sphere, sphere2, sphere3, sphere4]
-
+#objects = []
 # Now loop over every pixel in our frame
 
 # For every pixel
@@ -224,8 +224,12 @@ def hitDistance(ray, originObject):
 
 
 def sampleBackground(direction):
-    i = math.floor((math.atan2(direction.z, direction.x) + math.pi)/(2*math.pi)*backgroundWidth)
-    j = math.floor((math.atan2(direction.y, direction.x) + math.pi)/(2*math.pi)*backgroundHeight)
+    a1 = math.atan2(direction.z, direction.x)
+    b1 = math.atan2(-direction.y, direction.z)
+    a = (a1 + math.pi)/(2*math.pi)
+    b = (b1 + math.pi)/(2*math.pi)
+    i = math.floor(a*backgroundWidth)
+    j = math.floor(b*backgroundHeight)
     pixelPosition = i + j * backgroundWidth
     backgroundColor = backrgoundRows[pixelPosition * backgroundPixelByteWidth:(pixelPosition+1)*backgroundPixelByteWidth]
     return Vector(backgroundColor[0], backgroundColor[1], backgroundColor[2])
@@ -239,7 +243,7 @@ def renderRow(y):
     upWorld = camera.up.toScaled(SCALE_Y)
 
     for x in range(frame.width):
-        if x == 82 and y == 115:
+        if x == 255 or x == 0:
             print("here")
 
         # Convert from screen space to camera space
@@ -256,8 +260,8 @@ def renderRow(y):
         colorSum = VECTOR_ZERO
         for r in range(camera.raysPerPixel):
             pla = Point3D.fromVector(pixelLookAt.vector.clone())
-            pla.vector.x += X_PERCENT_INC * WIDTH * (random.random() - .5)
-            pla.vector.y += Y_PERCENT_INC * HEIGHT * (random.random() - .5)
+            # pla.vector.x += X_PERCENT_INC * WIDTH * (random.random() - .5)
+            # pla.vector.y += Y_PERCENT_INC * HEIGHT * (random.random() - .5)
             castDirection = pla.minus(camera.origin).toNormalized()
             color = castRay(Ray(camera.origin, castDirection), None,  4)
             colorSum = colorSum.plus(color)
