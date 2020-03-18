@@ -57,12 +57,18 @@ startTime = datetime.datetime.now()
 # A light
 # An object to render
 
+background = png.Reader(filename="sky.png")
+
+# https://stackoverflow.com/questions/138250/how-to-read-the-rgb-value-of-a-given-pixel-in-python/50894365
+backgroundWidth, backgroundHeight, backrgoundRows, backgroundMeta =  background.read_flat()
+backgroundPixelByteWidth = 4 if backgroundMeta['alpha'] else 3
+
 
 frame = Frame(256, 256)
 
 cameraOrigin = Point3D(0, 0, 1)
 origin = Point3D(0, 0, 0)
-cameraLookAt = origin
+cameraLookAt = Point3D(0, 0, 0)
 cameraUp = Vector(0, 1, 0)
 cameraBackgroundColor = Vector(0, 0, 0)
 # convert 45 degrees to radians. Should result in pi/4 ~= .785
@@ -79,24 +85,28 @@ lightColor = Vector(255, 255, 255)
 light = DirectionalLight(lightColor, 1, lightDirection)
 light2 = DirectionalLight(Vector(0, 0, 255), 1, Vector(1, 0, 0))
 
-sphereCenter = origin
+sphereCenter = Point3D(0,0,-.2)
 sphereRadius = .5
 sphereMaterialColor = Vector(255, 255, 255)
 sphereMaterialSpecularColor = Vector(255, 255, 255)
 sphereMaterialSpecularStrength = 1
 
 sphereMaterial = Material(
-    sphereMaterialColor, sphereMaterialSpecularColor, sphereMaterialSpecularStrength)
+    sphereMaterialColor, sphereMaterialSpecularColor, sphereMaterialSpecularStrength,.2)
 
 sphereMaterial2 = Material(
-    Vector(255, 0, 255), sphereMaterialSpecularColor, sphereMaterialSpecularStrength)
+    Vector(255, 255, 255), sphereMaterialSpecularColor, sphereMaterialSpecularStrength, .5)
+
+sphereMaterial3 = Material(
+    Vector(0, 255, 0), sphereMaterialSpecularColor, sphereMaterialSpecularStrength, 0)
 
 sphere = Sphere(sphereMaterial, sphereCenter, sphereRadius)
-sphere2 = Sphere(sphereMaterial2, Point3D(.1, .1, .5), .1)
-sphere3 = Sphere(sphereMaterial2, Point3D(-.1, .1, .5), .05)
+sphere2 = Sphere(sphereMaterial2, Point3D(.2, .2, .5), .1)
+sphere3 = Sphere(sphereMaterial2, Point3D(-.2, -.1, .5), .1)
+sphere4 = Sphere(sphereMaterial3, Point3D(0, -.1, .5), .1)
 
-lights = [light, light2]
-objects = [sphere, sphere2, sphere3]
+lights = [light]
+objects = [sphere, sphere2, sphere3, sphere4]
 
 # Now loop over every pixel in our frame
 
@@ -120,7 +130,7 @@ TO_LOOK_AT = camera.lookAt.minus(camera.origin)
 DISTANCE = TO_LOOK_AT.length()
 TO_LOOK_AT_NORMALIZED = TO_LOOK_AT.toNormalized()
 WIDTH = math.cos(camera.fov) * DISTANCE
-HEIGHT = math.sin(camera.fov) * DISTANCE
+HEIGHT = math.cos(camera.fov) * DISTANCE
 CAMERA_RIGHT = TO_LOOK_AT_NORMALIZED.cross(camera.up)
 PIXEL_WIDTH = ONE_OVER_FRAME_WIDTH * WIDTH
 PIXEL_HEIGHT = ONE_OVER_FRAME_HEIGHT * HEIGHT
@@ -130,62 +140,96 @@ X_PERCENT_INC = ONE_OVER_FRAME_WIDTH * 2
 Y_PERCENT_INC = ONE_OVER_FRAME_HEIGHT * 2
 
 
-def castRay(x, y, pixelLookAt):
+def castRay(ray, avoid, recursionDepth):
+    if recursionDepth <= 0:
+        return VECTOR_ZERO
     # Now jitter the ray slightly
-
-    if x == frame.width/2 and y == frame.height/2:
-        print("here")
 
     # We now have our world look at points
     # We need to generate our look at ray and NORMALIZE IT!!!
-    ray = Ray(camera.origin, pixelLookAt.minus(camera.origin).toNormalized())
+    #ray = Ray(camera.origin, pixelLookAt.minus(camera.origin).toNormalized())
 
-    t = float("inf")
-    i = -1
-    for object in objects:
-
-        temp = object.intersect(ray)
-        if temp > 0 and temp < t:
-            t = temp
-            i = objects.index(object)
-
-    if t >= 0 and not math.isinf(t):
+    initialHit = hitDistance(ray, avoid)
+    
+    if initialHit[1] != -1:
+        t = initialHit[0]
+        i = initialHit[1]
+        #if recursionDepth == 2 and i == 1:
+        #   print("here")
         object = objects[i]
-        collisionPoint = Point3D.fromVector(
-            ray.direction.toScaled(t).plus(camera.origin.vector))
+        material = object.material
+        collisionPoint = Point3D.fromVector(ray.direction.toScaled(t).plus(camera.origin.vector))
         normalDirection = collisionPoint.minus(object.center)
         normal = normalDirection.toNormalized()
 
         ambient = AMBIENT
         diffuse = VECTOR_ZERO
+        reflected = VECTOR_ZERO
 
+        # Do the lighting calculations
         for light in lights:
             # send out a ray and see if we actually get to the light
             toLight = light.direction.toScaled(-1)
-            lightRay = Ray(collisionPoint, toLight)
+            shadowRay = Ray(collisionPoint, toLight)
 
-            reject = False # reject goes true if we hit an object
-            for lightObject in objects:
-                if object !=lightObject:
-                    temp = lightObject.intersect(lightRay)
-                    if temp > 0:
-                        reject = True
-            if not reject:       
+            # Send out shadow-checking rays
+            castResult = hitDistance(shadowRay, object)
+            
+            if castResult[1] == - 1:
                 lightDiffuse = VECTOR_ZERO
                 product = toLight.dot(normal)
                 if product < 0:
                     product = 0
                 lightDiffuse = light.color.toScaled(product)
-                materialColor = object.material.diffuseColor
-                totalColor = lightDiffuse.pairwise(materialColor).toScaled(1/255)
+                materialColor = material.diffuseColor
+                totalColor = lightDiffuse.pairwise(
+                    materialColor).toScaled(1/255)
                 diffuse = diffuse.plus(totalColor)
 
-        color = ambient.plus(diffuse)
+        # Do the reflection calculations
+        reflectionDirection = ray.direction.toScaled(-1).reflectAbout(normal)
+        reflectionRay = Ray(collisionPoint, reflectionDirection)
+        reflected = castRay(reflectionRay, object, recursionDepth -1)
+        # hitDistance(reflectionRay, object)
+        # if reflectionResult[1] == -1: # We didn't hit anything
+        #     reflected = sampleBackground(reflectionDirection)
+        # else:
+        #     reflected = VECTOR_ZERO
+
+
+        color = ambient.plus(diffuse.toScaled(1 - material.reflectivity)).plus(reflected.toScaled(material.reflectivity))
 
         return color
     else:
-        return VECTOR_ZERO
+        return sampleBackground(ray.direction)
+        # i = math.floor((math.atan2(ray.direction.z, ray.direction.x) + math.pi)/(2*math.pi)*backgroundWidth)
+        # j = math.floor((math.atan2(ray.direction.y, ray.direction.x) + math.pi)/(2*math.pi)*backgroundHeight)
+        # pixelPosition = i + j * backgroundWidth
+        # backgroundColor = backrgoundRows[pixelPosition * backgroundPixelByteWidth:(pixelPosition+1)*backgroundPixelByteWidth]
+        # return Vector(backgroundColor[0], backgroundColor[1], backgroundColor[2])
+        # #return VECTOR_ZERO
 
+
+def hitDistance(ray, originObject):
+    closestHit = float("inf")
+    closestIndex = -1
+    for otherObject in objects:
+        if originObject != otherObject:
+            temp = otherObject.intersect(ray)
+            if temp > 0:
+                if temp < closestHit:
+                    closestHit = temp
+                    closestIndex = objects.index(otherObject)
+    return [closestHit, closestIndex]
+
+
+def sampleBackground(direction):
+    i = math.floor((math.atan2(direction.z, direction.x) + math.pi)/(2*math.pi)*backgroundWidth)
+    j = math.floor((math.atan2(direction.y, direction.x) + math.pi)/(2*math.pi)*backgroundHeight)
+    pixelPosition = i + j * backgroundWidth
+    backgroundColor = backrgoundRows[pixelPosition * backgroundPixelByteWidth:(pixelPosition+1)*backgroundPixelByteWidth]
+    return Vector(backgroundColor[0], backgroundColor[1], backgroundColor[2])
+    
 
 def renderRow(y):
     # -1 because images have y down
@@ -195,6 +239,9 @@ def renderRow(y):
     upWorld = camera.up.toScaled(SCALE_Y)
 
     for x in range(frame.width):
+        if x == 82 and y == 115:
+            print("here")
+
         # Convert from screen space to camera space
         # Then from frame camera space to world space
         #xPercent = x * ONE_OVER_FRAME_WIDTH * 2 -1
@@ -204,14 +251,15 @@ def renderRow(y):
         # This becomes the hyponetus for our triangle calculations
 
         # width and height should be the same unless we set different fovs for width and height
-        rightWorld = CAMERA_RIGHT.toScaled(WIDTH * xPercent)
-        pixelLookAt = Point3D.fromVector(upWorld.plus(rightWorld))
+        rightWorld = camera.lookAt.plusVector(CAMERA_RIGHT.toScaled(WIDTH * xPercent))
+        pixelLookAt = rightWorld.plusVector(upWorld)
         colorSum = VECTOR_ZERO
         for r in range(camera.raysPerPixel):
             pla = Point3D.fromVector(pixelLookAt.vector.clone())
             pla.vector.x += X_PERCENT_INC * WIDTH * (random.random() - .5)
             pla.vector.y += Y_PERCENT_INC * HEIGHT * (random.random() - .5)
-            color = castRay(x, y, pla)
+            castDirection = pla.minus(camera.origin).toNormalized()
+            color = castRay(Ray(camera.origin, castDirection), None,  4)
             colorSum = colorSum.plus(color)
         colorSum = colorSum.toScaled(1/camera.raysPerPixel)
         frame.set(x, y, colorSum)

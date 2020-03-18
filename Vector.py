@@ -56,6 +56,9 @@ class Vector:
 
     def pairwise(self, other):
         return Vector(self.x * other.x, self.y * other.y, self.z * other.z)
+
+    def reflectAbout(self, other):
+        return self.clone().toScaled(-1).plus(other.toScaled(2*self.dot(other)))
     
 
 

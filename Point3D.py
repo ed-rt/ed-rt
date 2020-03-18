@@ -16,3 +16,9 @@ class Point3D:
 
     def minus(self, other):
         return self.vector.minus(other.vector)
+
+    def plus(self, other):
+        return Point3D.fromVector(self.vector.plus(other.vector))
+
+    def plusVector(self, other):
+        return Point3D.fromVector(self.vector.plus(other))
